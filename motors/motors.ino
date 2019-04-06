@@ -1,34 +1,34 @@
-#define motor_back 5
+#include <AutoPID.h>
 #include <Servo.h>
 
-#define motor_front 6
-#define SERVO 6
+// CONFIGS
+double DISTANCE_REF = 10;
 
-#define FRONT 1
-#define BACK 0
+// PINS
+#define motor_front 5
+#define motor_back 6
+#define SERVO 8
 
 Servo myservo;
 
-void setMotor(uint8_t dir, uint8_t speed){
-  analogWrite(motor_back, dir?speed:0);
-  analogWrite(motor_front, dir?0:speed);
-  myservo.attach(SERVO);
+double distance = 0;
+double servo_pos = 0;
+
+AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 0, 180, 2, 2, 2);
+
+void setMotor(int motorSpeed){
+  analogWrite(motor_back, motorSpeed>=0?motorSpeed:0); //  TODO: map
+  analogWrite(motor_front, motorSpeed>=0?0:-motorSpeed);
 }
 
 void setup() {
   pinMode(motor_back, OUTPUT);
   pinMode(motor_front, OUTPUT);
+  myservo.attach(SERVO);
 }
 
 void loop() {
-  setMotor(FRONT, 50);
-  delay(1000);
-  setMotor(FRONT, 0);
-  delay(3000);
-  setMotor(BACK, 50);
-  delay(1000);
-  setMotor(BACK, 0);
-  delay(3000);
-
-  myservo.write(0);
+  setMotor(50);
+  
+  myservo.write(servo_pos);
 }
