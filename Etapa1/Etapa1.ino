@@ -1,8 +1,20 @@
+/*************************************************
+* Etapa 1
+* - Sensor sonar lateral le constantemente a distancia e guarda num vetor os valores obtidos.
+*   Usou-se a biblioteca RunningMedian para calcular a Mediana desse vetor (maneira de filtrar os valores recebidos).
+* - Controlo em PID do leme com o setpoint a metade da largura da pista
+* - Controlo da velocidade como função do erro do controlador PID
+*************************************************
+* Created on: Apr 06, 2016
+* Author: Cominhos
+*************************************************/
+ 
 #include <Servo.h>
 #include <AutoPID.h>
 #include <RunningMedian.h>
 
-#define SOUNDSPEED 340
+// DEFINES
+#define SOUND_SPEED 340
 
 #define N_SAMPLES 7
 
@@ -10,20 +22,18 @@
 #define SONAR1_ECHO 2
 
 #define ON_PIN 10
-#define MOTOR_FRONT 5
+#define MOTOR_FRONT 5 // Cor - Amarelo
 #define MOTOR_BACK 6
 #define SERVO 8
 
 #define DEBUG 0
 
-double DISTANCE_REF = 10;
+double DISTANCE_REF = 120;
 
 Servo myservo;
 
 double distance = 0;
-double servo_pos = 0;
-
-AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 0, 180, 2, 2, 2);
+double servo_pos = 90;
 
 typedef struct {
 
@@ -36,8 +46,6 @@ typedef struct {
 
   int ECHO;
   int TRIG;
-
-  int lastDistance;
 
   int nReads;
 
@@ -57,9 +65,12 @@ void SetState(int s);
 int GetDistance(sonar_t s);
 sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO);
 
+AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 75.0, 115.0, 3.5, 1, 1);
+
 void setup() {
   // put your setup code here, to run once:
 
+  distance = 0;
   state = 0;
   on = false;
   pinMode(ON_PIN, INPUT);
@@ -68,8 +79,12 @@ void setup() {
   pinMode(MOTOR_FRONT, OUTPUT);
   myservo.attach(SERVO);
 
-#if DEBUG
+  pid.setBangBang(200);
+  pid.setTimeStep(10);
+
   Serial.begin(115200);
+
+#if DEBUG
   Serial.print("Initial State: ");
   Serial.println(state);
 #endif
@@ -77,10 +92,15 @@ void setup() {
 
   s1 = initializeSonar(s1, SONAR1_TRIG, SONAR1_ECHO);
   attachInterrupt(digitalPinToInterrupt(s1.ECHO), echoChange1, CHANGE);
+  on = 1;
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+
+  Serial.print(servo_pos);
+  Serial.print(" - ");
+  Serial.println(distance);
 
   if (digitalRead(ON_PIN) == 1)
     on = true;
@@ -93,12 +113,12 @@ void loop() {
     SetState(1);
   }
 
-#if DEBUG
+  b = Serial.read();
+
   if (b == 'm') {
     Serial.print("Median: ");
-    Serial.println(s1distances.getMedian());
+    Serial.println(distance);
   }
-#endif
 
   if (on) {
 
@@ -115,21 +135,23 @@ void loop() {
     }
 
     pid.run();
-    setMotor(pid.atSetPoint(2) ? 100 : 50);
+    setMotor(pid.atSetPoint(20) ? 100 : 50);
     myservo.write(servo_pos);
 
   }
 }
 
+// Sets the State
 void SetState(int s) {
 
   state = s;
-
-  //Serial.print("State: ");
-  //Serial.println(s);
-
+#if DEBUG
+  Serial.print("State: ");
+  Serial.println(s);
+#endif
 }
 
+// ISR for chenge interrupt on Sonar ECHO pin
 void echoChange1() {
 
   if (digitalRead(s1.ECHO) == 1) {
@@ -151,6 +173,7 @@ void echoChange1() {
   }
 }
 
+// Send trigger pulse
 void SendTrigger(sonar_t s) {
   digitalWrite(s.TRIG, 0);
   digitalWrite(s.TRIG, 1);
@@ -165,6 +188,7 @@ void SendTrigger(sonar_t s) {
   s.echoRead = false;
 }
 
+// Gets a distance read from the sonar and adds it to the array
 int GetDistance(sonar_t s) {
 
   int ret = -1;
@@ -173,7 +197,7 @@ int GetDistance(sonar_t s) {
 
   if (s.echoRead) {
 
-    ret = s.distanceTime / 1000.0 / 2.0 * SOUNDSPEED;
+    ret = s.distanceTime / 1000.0 / 2.0 * SOUND_SPEED;
 
 #if DEBUG
     Serial.print("Distance Time: ");
@@ -184,14 +208,15 @@ int GetDistance(sonar_t s) {
 
     s.echoRead = false;
     s.distanceTime = 0;
-    s.lastDistance = ret;
     s1distances.add(ret);
+    distance = s1distances.getMedian();
     ret = 0;
   }
 
   return ret;
 }
 
+// Initialize Sonar variables
 sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO) {
 
   s.echoState = 0;
@@ -200,7 +225,6 @@ sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO) {
   s.distanceTime = 0;
   s.trigTime = 0;
   s.echoTime = 0;
-  s.lastDistance = 0;
   s.ECHO = ECHO;
   s.TRIG = TRIG;
 
@@ -213,9 +237,18 @@ sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO) {
 
 }
 
+// Set Motorspeed 
 void setMotor(int motorSpeed) {
 
-  analogWrite(MOTOR_BACK, (motorSpeed >= 0 ? motorSpeed : 0)); //  TODO: map
+  analogWrite(MOTOR_BACK, 0);
+  analogWrite(MOTOR_FRONT, 0);
+
+  if(motorSpeed > 254)
+    motorSpeed = 254;
+  else if (motorSpeed < -254)
+    motorSpeed = -254;
+
+  analogWrite(MOTOR_BACK, (motorSpeed >= 0 ? motorSpeed : 0));
   analogWrite(MOTOR_FRONT, (motorSpeed >= 0 ? 0 : -motorSpeed));
 
 }
