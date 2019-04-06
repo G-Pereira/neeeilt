@@ -28,7 +28,7 @@ void setup() {
 }
 
 void loop() {
-  setMotor(50);
-  
+  pid.run();
+  setMotor(myPID.atSetPoint(1));
   myservo.write(servo_pos);
 }
