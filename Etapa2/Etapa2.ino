@@ -28,12 +28,14 @@
 
 #define DEBUG 0
 
-double DISTANCE_REF = 130;
+double DISTANCE_REF = 150;
 
 Servo myservo;
 
 double distance = 0;
 double servo_pos = 90;
+int state_motor = 0;
+int timetoturn = 0;
 
 typedef struct {
 
@@ -65,7 +67,7 @@ void SetState(int s);
 int GetDistance(sonar_t s);
 sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO);
 
-AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 40.0, 130.0, 3.5, 1, 1);
+AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 60.0, 130.0, 3.5, 1, 1);
 
 void setup() {
   // put your setup code here, to run once:
@@ -128,11 +130,41 @@ void loop() {
         s1.readingFinished = true;
 
     }
-
+    /*
     pid.run();
     setMotor(pid.atSetPoint(20) ? 150 : 75);
     myservo.write(servo_pos);
+    */
 
+    if (state_motor == 0){
+      setMotor(254);
+      }
+    else if( state_motor == 1)
+      setMotor(254);
+    else if (state_motor == 2)
+      setMotor(120);
+    else if( state_motor == 3){
+      setMotor(100);
+      myservo.write(60);
+      }
+    else if(state_motor == 4)
+    {
+      setMotor(120);
+      myservo.write(90);
+    }
+
+    if(state_motor == 0 && distance > 1000)
+      state_motor = 1;
+    else if( state_motor == 1 && distance < 1000)
+      state_motor = 2;
+    else if( state_motor == 2 && distance > 1000){
+      state_motor = 3;
+      timetoturn = millis();
+    }
+    else if( state_motor == 3 && (timetoturn - millis() > 2000))
+      state_motor = 4;
+    
+ 
   }
 }
 
