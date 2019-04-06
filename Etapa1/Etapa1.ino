@@ -21,14 +21,14 @@
 #define SONAR1_TRIG 7
 #define SONAR1_ECHO 2
 
-#define ON_PIN 10
+#define ON_PIN 12
 #define MOTOR_FRONT 5 // Cor - Amarelo
 #define MOTOR_BACK 6
-#define SERVO 8
+#define SERVO 9
 
 #define DEBUG 0
 
-double DISTANCE_REF = 120;
+double DISTANCE_REF = 150;
 
 Servo myservo;
 
@@ -65,7 +65,7 @@ void SetState(int s);
 int GetDistance(sonar_t s);
 sonar_t initializeSonar(sonar_t s, int TRIG, int ECHO);
 
-AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 75.0, 115.0, 3.5, 1, 1);
+AutoPID pid(&distance, &DISTANCE_REF, &servo_pos, 60.0, 130.0, 3.5, 1, 1);
 
 void setup() {
   // put your setup code here, to run once:
@@ -73,7 +73,8 @@ void setup() {
   distance = 0;
   state = 0;
   on = false;
-  pinMode(ON_PIN, INPUT);
+  pinMode(ON_PIN, INPUT_PULLUP);
+  digitalWrite(ON_PIN, 1);
 
   pinMode(MOTOR_BACK, OUTPUT);
   pinMode(MOTOR_FRONT, OUTPUT);
@@ -82,9 +83,8 @@ void setup() {
   pid.setBangBang(200);
   pid.setTimeStep(10);
 
-  Serial.begin(115200);
-
 #if DEBUG
+  Serial.begin(115200);
   Serial.print("Initial State: ");
   Serial.println(state);
 #endif
@@ -92,32 +92,27 @@ void setup() {
 
   s1 = initializeSonar(s1, SONAR1_TRIG, SONAR1_ECHO);
   attachInterrupt(digitalPinToInterrupt(s1.ECHO), echoChange1, CHANGE);
-  on = 1;
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  Serial.print(servo_pos);
-  Serial.print(" - ");
-  Serial.println(distance);
-
-  if (digitalRead(ON_PIN) == 1)
+  if (digitalRead(ON_PIN) == 0 && !on) {
+    delay(5000);
     on = true;
+  }
 
+  if (digitalRead(ON_PIN) == 1 && on) {
+    on = false;
+    setMotor(0);
+  }
+  
   if (state == 0 && on) {
     SetState(1);
   } else if (state == 1) {
     SetState(2);
   } else if (state == 2 && s1.readingFinished) {
     SetState(1);
-  }
-
-  b = Serial.read();
-
-  if (b == 'm') {
-    Serial.print("Median: ");
-    Serial.println(distance);
   }
 
   if (on) {
@@ -135,7 +130,7 @@ void loop() {
     }
 
     pid.run();
-    setMotor(pid.atSetPoint(20) ? 100 : 50);
+    setMotor(pid.atSetPoint(20) ? 150 : 75);
     myservo.write(servo_pos);
 
   }
@@ -202,7 +197,8 @@ int GetDistance(sonar_t s) {
 #if DEBUG
     Serial.print("Distance Time: ");
     Serial.println(s.distanceTime);
-    Serial.write("Distance Read: ");
+
+    Serial.print("Distance Read: ");
     Serial.println(ret);
 #endif
 
